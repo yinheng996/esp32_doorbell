@@ -7,20 +7,6 @@ Small ESP32 firmware that connects to a WPA2-Enterprise network (PEAP/MSCHAPv2) 
 - ESP32 DevKit (Arduino framework)
 - Telegram bot token + chat ID (see [`docs/telegram-bot-setup.md`](docs/telegram-bot-setup.md))
 
-esp32_doorbell/
-├─ include/
-│  ├─ config.h
-│  ├─ credentials.example.h
-│  └─ credentials.h
-├─ src/
-│  ├─ main.cpp
-│  └─ schedule.cpp
-├─ docs/
-│  └─ telegram-setup.md
-├─ README.md
-└─ platformio.ini
-
-
 ## Quick start
 1. Clone & open this repo in VS Code (PlatformIO installed).
 2. Create credentials:
