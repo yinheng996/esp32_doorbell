@@ -1,37 +1,44 @@
+# ESP32 Doorbell
 
-This directory is intended for project header files.
+Small ESP32 firmware that connects to a WPA2-Enterprise network (PEAP/MSCHAPv2) and sends a Telegram message when a doorbell button is pressed.
 
-A header file is a file containing C declarations and macro definitions
-to be shared between several project source files. You request the use of a
-header file in your project source file (C, C++, etc) located in `src` folder
-by including it, with the C preprocessing directive `#include'.
+## Requirements
+- VS Code + PlatformIO
+- ESP32 DevKit (Arduino framework)
+- Telegram bot token + chat ID (see [`docs/telegram-bot-setup.md`](docs/telegram-bot-setup.md))
 
-```src/main.c
+## Project structure
+.
+├─ include/
+│  ├─ config.h
+│  ├─ credentials.example.h
+│  └─ credentials.h       
+├─ src/
+│  └─ main.cpp
+├─ docs/
+│  └─ telegram-setup.md
+├─ README.md
+└─ platformio.ini
 
-#include "header.h"
 
-int main (void)
-{
- ...
-}
-```
+## Quick start
+1. Clone & open this repo in VS Code (PlatformIO installed).
+2. Create credentials:
+   - Copy `include/credentials.example.h` → `include/credentials.h`.
+   - Fill these fields with real values:
+     - `WIFI_SSID`, `EAP_IDENTITY`, `EAP_USERNAME`, `EAP_PASSWORD`
+     - `TG_BOT_TOKEN`, `TG_CHAT_ID`
+     - `DOOR_NAME` (device label shown in alerts)
+3. Build & Upload using the PlatformIO toolbar.
+4. Serial Monitor @ 115200 baud to view logs.
 
-Including a header file produces the same results as copying the header file
-into each source file that needs it. Such copying would be time-consuming
-and error-prone. With a header file, the related declarations appear
-in only one place. If they need to be changed, they can be changed in one
-place, and programs that include the header file will automatically use the
-new version when next recompiled. The header file eliminates the labor of
-finding and changing all the copies as well as the risk that a failure to
-find one copy will result in inconsistencies within a program.
+> Note: `include/credentials.h` is **gitignored** by default.
 
-In C, the convention is to give header files names that end with `.h'.
+## Runtime behavior
+- On boot: connects to Wi-Fi (PEAP/MSCHAPv2), sets hostname from `DOOR_NAME`, sends a “🔌 \<name\> online” Telegram message on success.
+- On button press (falling edge): sends “🔔 \<name\> doorbell pressed”, respecting debounce and cooldown.
 
-Read more about using header files in official GCC documentation:
 
-* Include Syntax
-* Include Operation
-* Once-Only Headers
-* Computed Includes
-
-https://gcc.gnu.org/onlinedocs/cpp/Header-Files.html
+## Security notes
+- For first tests, TLS uses `setInsecure()`. For production, pin Telegram’s CA or use certificate validation.
+- Never commit real tokens/passwords. Rotate the Telegram token immediately if leaked.
