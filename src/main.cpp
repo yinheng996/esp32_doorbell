@@ -2,10 +2,13 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <time.h>
+#include <LittleFS.h>
 
 #include "config.h"
 #include "credentials.h"
 #include "schedule.h"
+#include "offline_log.h"
 
 // --- prototypes ---
 static String makeHostname(const char* label);
@@ -22,6 +25,10 @@ static bool lastRead   = HIGH;
 static unsigned long lastChangeMs = 0;
 static unsigned long lastNotifyMs = 0;
 
+// for reporting when schedule flips to working hours
+static bool wasWithin = false;
+static unsigned long lastSchedCheck = 0;
+
 // ========================== setup / loop ===================================
 void setup() {
   Serial.begin(115200);
@@ -32,28 +39,41 @@ void setup() {
 
   connectWiFiPSK();
 
+  // Start NTP (non-blocking) and try to sync briefly
   if (WiFi.status() == WL_CONNECTED) {
-    // Try NTP for ~10s, then print the local time if synced
     if (scheduleEnsureTime(10000)) {
       schedulePrintCurrentLocalTime();
     } else {
       Serial.println("[TIME] not synced yet (will still operate per policy)");
     }
+  } else {
+    Serial.println("Wi-Fi connect FAILED");
+  }
 
+  // Mount LittleFS for offline logging
+  offlinelog::begin();
+
+  // Ensure localtime formatting matches schedule timezone for summaries
+  setenv("TZ", SCHED_TZ, 1);
+  tzset();
+
+  // Initial “online” message only during working hours
+  if (WiFi.status() == WL_CONNECTED) {
     if (isWithinSchedule()) {
       sendTelegram(String("🔌 <b>") + DOOR_NAME + "</b> online");
     } else {
       Serial.println("[SCHED] Off-hours: suppressing 'online' notification");
     }
-  } else {
-    Serial.println("Wi-Fi connect FAILED");
   }
+  // Initialize edge-detection memory for schedule
+  wasWithin = isWithinSchedule();
 }
 
 void loop() {
   int raw = digitalRead(BTN_PIN);
   unsigned long now = millis();
 
+  // Debounce
   if (raw != lastRead) { lastRead = raw; lastChangeMs = now; }
   if ((now - lastChangeMs) > DEBOUNCE_MS) {
     if (lastStable != lastRead) {
@@ -63,8 +83,12 @@ void loop() {
           lastNotifyMs = now;
 
           if (!isWithinSchedule()) {
-            Serial.println("[SCHED] Button press ignored (off-hours)");
+            // OFF-HOURS: queue to offline log, not discarded
+            uint32_t epochNow = (uint32_t)time(nullptr); // ok if 0 pre-sync
+            offlinelog::logPress(epochNow);
+            Serial.println("[SCHED] Off-hours: queued press in offline log");
           } else {
+            // WITHIN HOURS: normal immediate notify
             String msg = String("🔔 <b>") + DOOR_NAME + "</b> doorbell pressed";
             bool ok = sendTelegram(msg);
             Serial.println(ok ? "TG sent" : "TG send failed");
@@ -75,6 +99,39 @@ void loop() {
       }
     }
   }
+
+  // Check schedule once per minute; when we enter working hours, flush summary
+  // Check schedule every minute (or faster during testing)
+if (now - lastSchedCheck > 60UL * 1000) {
+  lastSchedCheck = now;
+
+  bool within = isWithinSchedule();
+
+  // -> entering working hours
+  if (within && !wasWithin) {
+    Serial.println("[SCHED] Transition to working hours");
+    if (WiFi.status() == WL_CONNECTED) {
+      // (a) send ONLINE notice
+      sendTelegram(String("🔌 <b>") + DOOR_NAME + "</b> online");
+
+      // (b) flush any queued off-hours presses
+      offlinelog::reportAndClear();
+    } else {
+      Serial.println("[SCHED] Wi-Fi down at transition; will try next minute");
+    }
+  }
+
+  // -> leaving working hours (entering off-hours)
+  if (!within && wasWithin) {
+    Serial.println("[SCHED] Transition to off-hours");
+    if (WiFi.status() == WL_CONNECTED) {
+      sendTelegram(String("🔕 <b>") + DOOR_NAME + "</b> offline (outside working hours)");
+    }
+  }
+
+  wasWithin = within;
+}
+
   delay(5);
 }
 // ===========================================================================
