@@ -31,6 +31,7 @@ static unsigned long lastSchedCheck = 0;
 
 // ========================== setup / loop ===================================
 void setup() {
+
   Serial.begin(115200);
   delay(50);
 
@@ -43,6 +44,7 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     if (scheduleEnsureTime(10000)) {
       schedulePrintCurrentLocalTime();
+
     } else {
       Serial.println("[TIME] not synced yet (will still operate per policy)");
     }
@@ -82,18 +84,20 @@ void loop() {
         if (now - lastNotifyMs > COOLDOWN_MS) {
           lastNotifyMs = now;
 
+          // OFF-HOURS: queue to offline log, not discarded
           if (!isWithinSchedule()) {
-            // OFF-HOURS: queue to offline log, not discarded
             uint32_t epochNow = (uint32_t)time(nullptr); // ok if 0 pre-sync
             offlinelog::logPress(epochNow);
             Serial.println("[SCHED] Off-hours: queued press in offline log");
+
+          // WITHIN HOURS: normal immediate notify
           } else {
-            // WITHIN HOURS: normal immediate notify
             String msg = String("🔔 <b>") + DOOR_NAME + "</b> doorbell pressed";
             bool ok = sendTelegram(msg);
             Serial.println(ok ? "TG sent" : "TG send failed");
           }
-        } else {
+
+        } else { // prevent button spam
           Serial.println("Pressed (cooldown) -> not sending");
         }
       }
@@ -102,36 +106,38 @@ void loop() {
 
   // Check schedule once per minute; when we enter working hours, flush summary
   // Check schedule every minute (or faster during testing)
-if (now - lastSchedCheck > 60UL * 1000) {
-  lastSchedCheck = now;
+  if (now - lastSchedCheck > 60UL * 1000) {
+    lastSchedCheck = now;
 
-  bool within = isWithinSchedule();
+    bool within = isWithinSchedule();
 
-  // -> entering working hours
-  if (within && !wasWithin) {
-    Serial.println("[SCHED] Transition to working hours");
-    if (WiFi.status() == WL_CONNECTED) {
-      // (a) send ONLINE notice
-      sendTelegram(String("🔌 <b>") + DOOR_NAME + "</b> online");
+    // -> Entering working hours
+    if (within && !wasWithin) {
+      Serial.println("[SCHED] Transition to working hours");
+      if (WiFi.status() == WL_CONNECTED) {
 
-      // (b) flush any queued off-hours presses
-      offlinelog::reportAndClear();
-    } else {
-      Serial.println("[SCHED] Wi-Fi down at transition; will try next minute");
+        // (a) send ONLINE notice
+        sendTelegram(String("🔌 <b>") + DOOR_NAME + "</b> online");
+
+        // (b) flush any queued off-hours presses
+        offlinelog::reportAndClear();
+
+      } else {
+        Serial.println("[SCHED] Wi-Fi down at transition; will try next minute");
+      }
     }
-  }
 
-  // -> leaving working hours (entering off-hours)
-  if (!within && wasWithin) {
-    Serial.println("[SCHED] Transition to off-hours");
-    if (WiFi.status() == WL_CONNECTED) {
-      sendTelegram(String("🔕 <b>") + DOOR_NAME + "</b> offline (outside working hours)");
+    // -> Leaving working hours
+    if (!within && wasWithin) {
+      Serial.println("[SCHED] Transition to off-hours");
+      if (WiFi.status() == WL_CONNECTED) {
+
+        sendTelegram(String("🔕 <b>") + DOOR_NAME + "</b> offline (outside working hours)");
+      }
     }
+
+    wasWithin = within;
   }
-
-  wasWithin = within;
-}
-
   delay(5);
 }
 // ===========================================================================
