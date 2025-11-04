@@ -11,6 +11,7 @@
 
 # --- Credentials ---
 include/credentials.h
+include/working_hours.h
 include/*_private.h
 include/*.local.h
 *.env
