@@ -83,6 +83,13 @@ void App::onPressThunk_() {
 }
 
 void App::onPress_() {
+  const uint32_t nowMs = millis();
+  if (nowMs - lastPressMs_ < COOLDOWN_MS) {
+    Serial.println(F("[BTN] press ignored (cooldown)"));
+    return;
+  }
+  lastPressMs_ = nowMs;
+
   const bool within = g_sched.within();
 
   if (within) {

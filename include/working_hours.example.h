@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "work_hours_types.h"
 
 // --- Local policy (copy this to working_hours.h and edit) ---
 
@@ -17,13 +18,6 @@
 #ifndef WORK_VALID_EPOCH
 #define WORK_VALID_EPOCH 1672531200UL
 #endif
-
-// A daily schedule consists of up to N windows (start <= t < end), minutes from midnight
-struct WorkWindow { uint16_t start_min; uint16_t end_min; }; // [start, end)
-struct DayWindows {
-  uint8_t count;
-  WorkWindow windows[4]; // up to 4 windows per day; adjust if you need more
-};
 
 // Example: Mon–Fri 09:00–18:00, weekend closed
 constexpr DayWindows WORK_HOURS[7] = {

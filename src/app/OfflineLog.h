@@ -16,4 +16,5 @@ private:
   const char* path_;
   size_t rotateKB_;
   bool fsReady_ = false;
+  uint32_t lastLoggedMinute_ = 0xFFFFFFFFUL; // sentinel meaning none logged
 };

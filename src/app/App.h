@@ -12,6 +12,7 @@ private:
   void        onPress_();
   void        handleEdge_(int edge); // 0=None, 1=Entered, 2=Left
 
-  // Ordering guard: ensure “online + summary” before first in-hours press
+  // Ordering guard: ensure "online + summary" before first in-hours press
   bool transitionHandled_ = true;
+  uint32_t lastPressMs_ = 0;
 };

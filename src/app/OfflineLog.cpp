@@ -17,11 +17,17 @@ void OfflineLog::begin(bool formatOnFail) {
 }
 
 void OfflineLog::logPress(uint32_t epochSecs) {
+  const uint32_t minuteKey = epochSecs ? (epochSecs / 60U) : 0xFFFFFFFEUL;
+  if (lastLoggedMinute_ == minuteKey) {
+    Serial.println("[offline_log] duplicate minute; press skipped");
+    return;
+  }
   if (!fsReady_) return;
   File f = LittleFS.open(path_, FILE_APPEND);
   if (!f) { Serial.println("[offline_log] open append failed"); return; }
   f.printf("{\"t\":%lu}\n", (unsigned long)epochSecs);
   f.close();
+  lastLoggedMinute_ = minuteKey;
 
   File r = LittleFS.open(path_, FILE_READ);
   if (r) {

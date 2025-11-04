@@ -1,10 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <time.h>
-
-// Forward-declare config structs so we don't include the local file here.
-struct WorkWindow { uint16_t start_min; uint16_t end_min; };
-struct DayWindows { uint8_t count; WorkWindow windows[4]; };
+#include "work_hours_types.h" // provides WorkWindow/DayWindows definitions
 
 class BusinessHours {
 public:
