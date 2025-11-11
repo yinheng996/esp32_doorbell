@@ -14,7 +14,7 @@ bool Notifier::sendOffline() { return sendTelegram_(String("🔕 <b>") + door_ +
 bool Notifier::sendPressed() { 
   // Make the doorbell notification very prominent with formatting
   String message = String("🔔🔔🔔\n") +
-                   String("<b><u>") + door_ + " DOORBELL PRESSED</u></b>\n") +
+                   String("<b><u>") + String(door_) + String(" DOORBELL PRESSED</u></b>\n") +
                    String("🔔🔔🔔\n\n") +
                    String("Someone is at the door!");
   // Inline keyboard with smaller, less prominent buttons
