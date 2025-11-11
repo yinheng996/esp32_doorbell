@@ -29,7 +29,7 @@ static Scheduler g_sched{withinThunk_};
 
 // Door controller also needs to check working hours
 static bool doorWithinThunk_() { return g_sched.within(); }
-static DoorController g_doorController{TG_BOT_TOKEN, DOOR_PIN, DOOR_NAME, doorWithinThunk_};
+static DoorController g_doorController{DOOR_PIN, DOOR_NAME, doorWithinThunk_};
 
 // ---------- App ----------
 void App::begin() {
@@ -56,15 +56,19 @@ void App::begin() {
   g_sched.begin(/*pollMs=*/1000);
   transitionHandled_ = true;
 
+  // Door controller (web server)
+  g_doorController.begin();
+  
+  // Notifier (Telegram bot for commands and notifications)
+  g_notifier.setDoorController(&g_doorController);
+  g_notifier.begin();
+  
   // Initial announce only if already within working hours
   if (g_sched.within() && g_net.connected()) {
     g_notifier.sendOnline();
   } else {
     Serial.println(F("[SCHED] booted outside working hours"));
   }
-  
-  // Door controller (Telegram bot and web server)
-  g_doorController.begin();
   
   // All initialization complete
   Serial.println(F("========================================"));
@@ -77,6 +81,7 @@ void App::loop() {
   g_net.loop();
   g_time.loop();
   g_btn.loop();
+  g_notifier.loop();
   g_doorController.loop();
 
   // Edge detection

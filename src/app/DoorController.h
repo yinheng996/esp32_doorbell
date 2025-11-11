@@ -5,23 +5,20 @@ class DoorController {
 public:
   using FnWithinHours = bool(*)();
   
-  DoorController(const char* botToken, int doorPin, const char* doorName, FnWithinHours fnWithinHours);
+  DoorController(int doorPin, const char* doorName, FnWithinHours fnWithinHours);
   void begin();
   void loop();
   void openDoor();
   void closeDoor();
   int getDoorStatus() const;
+  bool isWithinWorkingHours() const;
+  const char* getDoorName() const { return doorName_; }
 
 private:
-  void handleNewMessages(int numNewMessages);
-  void handleCallbackQuery(String queryId, String queryData, String chatId);
-  void answerCallbackQuery(String queryId);
   void handleRequest();
   void handleOpenDoor();
   void handleCloseDoor();
-  bool isWithinWorkingHours() const;
   
-  const char* botToken_;
   int doorPin_;
   int doorStatus_;
   const char* doorName_;
