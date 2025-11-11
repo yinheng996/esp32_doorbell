@@ -65,6 +65,11 @@ void App::begin() {
   
   // Door controller (Telegram bot and web server)
   g_doorController.begin();
+  
+  // All initialization complete
+  Serial.println(F("========================================"));
+  Serial.println(F("Ready for Operation"));
+  Serial.println(F("========================================"));
 }
 
 void App::loop() {

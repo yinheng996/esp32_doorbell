@@ -12,34 +12,56 @@ Notifier::Notifier(const char* botToken, const char* chatId, const char* doorNam
 bool Notifier::sendOnline()  { return sendTelegram_(String("🔌 <b>") + door_ + "</b> online", true); }
 bool Notifier::sendOffline() { return sendTelegram_(String("🔕 <b>") + door_ + "</b> offline", true); }
 bool Notifier::sendPressed() { 
-  String message = String("🔔 <b>") + door_ + "</b> doorbell pressed";
-  // Inline keyboard with three buttons: Open Door, Close Door, Check Status
-  String keyboardJson = "{\"inline_keyboard\":[[{\"text\":\"Open Door\",\"callback_data\":\"open_door\"},{\"text\":\"Close Door\",\"callback_data\":\"close_door\"}],[{\"text\":\"Check Status\",\"callback_data\":\"check_status\"}]]}";
+  // Make the doorbell notification very prominent with formatting
+  String message = String("🔔🔔🔔\n") +
+                   String("<b><u>") + door_ + " DOORBELL PRESSED</u></b>\n") +
+                   String("🔔🔔🔔\n\n") +
+                   String("Someone is at the door!");
+  // Inline keyboard with smaller, less prominent buttons
+  String keyboardJson = "{\"inline_keyboard\":[[{\"text\":\"🚪 Open\",\"callback_data\":\"open_door\"},{\"text\":\"🔒 Close\",\"callback_data\":\"close_door\"}],[{\"text\":\"📊 Status\",\"callback_data\":\"check_status\"}]]}";
   return sendTelegramWithKeyboard_(message, keyboardJson);
 }
 bool Notifier::sendSummary(const String& text) { return sendTelegram_(text, false); }
 
 bool Notifier::sendTelegram_(const String& text, bool html) {
   if (WiFi.status() != WL_CONNECTED) return false;
+  
+  // Ensure previous connection is closed
+  if (s_https.connected()) {
+    s_https.end();
+  }
+  
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   String body = "chat_id=" + String(chat_) + "&text=" + text;
   if (html) body += "&parse_mode=HTML";
 
   s_tls.setInsecure(); // TODO: setCACert for production
-  if (!s_https.begin(s_tls, url)) return false;
+  s_tls.setTimeout(10000); // 10 second timeout
+  if (!s_https.begin(s_tls, url)) {
+    Serial.println(F("[TG] Failed to begin HTTPS connection"));
+    return false;
+  }
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  s_https.setTimeout(10000);
 
   int code = s_https.POST(body);
   String resp = s_https.getString();
   s_https.end();
+  s_tls.stop(); // Ensure connection is fully closed
 
   Serial.printf("[TG] HTTP %d\n", code);
-  if (code != 200) Serial.println(resp);
+  if (code != 200 && code > 0) Serial.println(resp);
   return code == 200;
 }
 
 bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keyboardJson) {
   if (WiFi.status() != WL_CONNECTED) return false;
+  
+  // Ensure previous connection is closed
+  if (s_https.connected()) {
+    s_https.end();
+  }
+  
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   
   // URL encode the text and keyboard
@@ -48,14 +70,20 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
   body += "&reply_markup=" + keyboardJson;
 
   s_tls.setInsecure(); // TODO: setCACert for production
-  if (!s_https.begin(s_tls, url)) return false;
+  s_tls.setTimeout(10000); // 10 second timeout
+  if (!s_https.begin(s_tls, url)) {
+    Serial.println(F("[TG] Failed to begin HTTPS connection (keyboard)"));
+    return false;
+  }
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  s_https.setTimeout(10000);
 
   int code = s_https.POST(body);
   String resp = s_https.getString();
   s_https.end();
+  s_tls.stop(); // Ensure connection is fully closed
 
   Serial.printf("[TG] HTTP %d (with keyboard)\n", code);
-  if (code != 200) Serial.println(resp);
+  if (code != 200 && code > 0) Serial.println(resp);
   return code == 200;
 }

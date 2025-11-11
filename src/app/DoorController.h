@@ -14,7 +14,8 @@ public:
 
 private:
   void handleNewMessages(int numNewMessages);
-  void handleCallbackQuery(String queryId, String queryData);
+  void handleCallbackQuery(String queryId, String queryData, String chatId);
+  void answerCallbackQuery(String queryId);
   void handleRequest();
   void handleOpenDoor();
   void handleCloseDoor();
