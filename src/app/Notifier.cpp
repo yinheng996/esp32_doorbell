@@ -172,9 +172,12 @@ void Notifier::answerCallbackQuery(String queryId) {
   if (!ensureDnsReady_()) return;
   
   // Ensure previous connection is fully closed
-  s_callbackHttp.end();
-  s_callbackClient.stop();
-  delay(10); // Small delay to allow socket cleanup
+  if (s_callbackHttp.connected()) {
+    s_callbackHttp.end();
+  }
+  if (s_callbackClient.connected()) {
+    s_callbackClient.stop();
+  }
   
   String url = String("https://api.telegram.org/bot") + bot_ + "/answerCallbackQuery";
   String body = "callback_query_id=" + queryId;
@@ -193,7 +196,7 @@ void Notifier::answerCallbackQuery(String queryId) {
     s_callbackHttp.getString();
   }
   s_callbackHttp.end();
-  s_callbackClient.stop();
+  // Don't call stop() - end() handles cleanup
   
   if (code != 200 && code > 0) {
     Serial.printf("[TG] Callback query HTTP %d\n", code);
@@ -208,9 +211,12 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
   if (!ensureDnsReady_()) return false;
   
   // Ensure previous connection is fully closed
-  s_https.end();
-  s_tls.stop();
-  delay(10); // Small delay to allow socket cleanup
+  if (s_https.connected()) {
+    s_https.end();
+  }
+  if (s_tls.connected()) {
+    s_tls.stop();
+  }
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   String body = "chat_id=" + chatId + "&text=" + text;
@@ -230,7 +236,7 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
     s_https.getString(); // Read response
   }
   s_https.end();
-  s_tls.stop();
+  // Don't call stop() - end() handles cleanup
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d\n", code);
@@ -242,9 +248,12 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
   if (!ensureDnsReady_()) return false;
   
   // Ensure previous connection is fully closed
-  s_https.end();
-  s_tls.stop();
-  delay(10); // Small delay to allow socket cleanup
+  if (s_https.connected()) {
+    s_https.end();
+  }
+  if (s_tls.connected()) {
+    s_tls.stop();
+  }
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   
@@ -267,7 +276,7 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
     s_https.getString(); // Read response
   }
   s_https.end();
-  s_tls.stop();
+  // Don't call stop() - end() handles cleanup
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d (keyboard)\n", code);
