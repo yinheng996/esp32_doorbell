@@ -1,7 +1,17 @@
 #include "Button.h"
 
+Button* Button::instance_ = nullptr;
+
 Button::Button(uint8_t pin, bool activeLow, uint32_t debounceMs)
-: pin_(pin), activeLow_(activeLow), debounceMs_(debounceMs) {}
+: pin_(pin), activeLow_(activeLow), debounceMs_(debounceMs) {
+  instance_ = this;
+}
+
+void IRAM_ATTR Button::isr_() {
+  if (instance_) {
+    instance_->interruptFlag_ = true;
+  }
+}
 
 void Button::begin(Callback cb) {
   cb_ = cb;
@@ -9,12 +19,39 @@ void Button::begin(Callback cb) {
   lastStable_ = digitalRead(pin_);
   lastRead_   = lastStable_;
   lastChangeMs_ = millis();
+  
+  // Attach interrupt for immediate detection
+  attachInterrupt(digitalPinToInterrupt(pin_), isr_, CHANGE);
 }
 
 void Button::loop() {
-  int raw = digitalRead(pin_);
+  // Check if interrupt occurred
+  if (interruptFlag_) {
+    interruptFlag_ = false;
+    checkState_();
+  }
+  
+  // Also do polling as backup (for debouncing)
   unsigned long now = millis();
-  if (raw != lastRead_) { lastRead_ = raw; lastChangeMs_ = now; }
+  if ((now - lastChangeMs_) > debounceMs_) {
+    int raw = digitalRead(pin_);
+    if (raw != lastRead_) {
+      lastRead_ = raw;
+      lastChangeMs_ = now;
+      checkState_();
+    }
+  }
+}
+
+void Button::checkState_() {
+  unsigned long now = millis();
+  int raw = digitalRead(pin_);
+  
+  if (raw != lastRead_) {
+    lastRead_ = raw;
+    lastChangeMs_ = now;
+  }
+  
   if ((now - lastChangeMs_) > debounceMs_) {
     if (lastStable_ != lastRead_) {
       lastStable_ = lastRead_;

@@ -49,16 +49,14 @@ void Notifier::setDoorController(DoorController* doorCtrl) {
   doorController_ = doorCtrl;
 }
 
-bool Notifier::sendOnline()  { return sendTelegram_(String("🔌 <b>") + door_ + "</b> online", true); }
-bool Notifier::sendOffline() { return sendTelegram_(String("🔕 <b>") + door_ + "</b> offline", true); }
+bool Notifier::sendOnline()  { return sendTelegram_(String("<b>") + door_ + "</b> online", true); }
+bool Notifier::sendOffline() { return sendTelegram_(String("<b>") + door_ + "</b> offline", true); }
 bool Notifier::sendPressed() { 
-  // Make the doorbell notification very prominent with formatting
-  String message = String("🔔🔔🔔\n") +
-                   String("<b><u>") + String(door_) + String(" DOORBELL PRESSED</u></b>\n") +
-                   String("🔔🔔🔔\n\n") +
-                   String("Someone is at the door!");
-  // Inline keyboard with smaller, less prominent buttons
-  String keyboardJson = "{\"inline_keyboard\":[[{\"text\":\"🚪 Open\",\"callback_data\":\"open_door\"},{\"text\":\"🔒 Close\",\"callback_data\":\"close_door\"}],[{\"text\":\"📊 Status\",\"callback_data\":\"check_status\"}]]}";
+  // Professional, minimal doorbell notification
+  String message = String("<b>") + String(door_) + String("</b>\n") +
+                   String("Doorbell pressed");
+  // Inline keyboard with clean buttons
+  String keyboardJson = "{\"inline_keyboard\":[[{\"text\":\"Open\",\"callback_data\":\"open_door\"},{\"text\":\"Close\",\"callback_data\":\"close_door\"}],[{\"text\":\"Status\",\"callback_data\":\"check_status\"}]]}";
   return sendTelegramWithKeyboard_(message, keyboardJson);
 }
 bool Notifier::sendSummary(const String& text) { return sendTelegram_(text, false); }
@@ -80,13 +78,11 @@ void Notifier::handleNewMessages(int numNewMessages) {
     if (text == "/open_door") {
       if (doorController_->isWithinWorkingHours()) {
         doorController_->openDoor();
-        String msg = String("🔴 ") + String(doorController_->getDoorName()) + " opened";
-        delay(50);
-        sendTelegramToChat_(chat_id, msg);
+        String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> opened";
+        sendTelegramToChat_(chat_id, msg, true);
         Serial.printf("[TG] Sent response: %s\n", msg.c_str());
       } else {
-        String msg = String("⏰ ") + String(doorController_->getDoorName()) + " can only be opened during working hours";
-        delay(50);
+        String msg = String("Outside working hours");
         sendTelegramToChat_(chat_id, msg);
         Serial.println(F("[TG] Door open denied - outside working hours"));
       }
@@ -94,30 +90,26 @@ void Notifier::handleNewMessages(int numNewMessages) {
     else if (text == "/close_door") {
       if (doorController_->isWithinWorkingHours()) {
         doorController_->closeDoor();
-        String msg = String("🟢 ") + String(doorController_->getDoorName()) + " closed";
-        delay(50);
-        sendTelegramToChat_(chat_id, msg);
+        String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> closed";
+        sendTelegramToChat_(chat_id, msg, true);
         Serial.printf("[TG] Sent response: %s\n", msg.c_str());
       } else {
-        String msg = String("⏰ ") + String(doorController_->getDoorName()) + " can only be closed during working hours";
-        delay(50);
+        String msg = String("Outside working hours");
         sendTelegramToChat_(chat_id, msg);
         Serial.println(F("[TG] Door close denied - outside working hours"));
       }
     }
     else if (text == "/read_status") {
       int status = doorController_->getDoorStatus();
-      String statusMsg = String("🟡 ") + String(doorController_->getDoorName()) + (status ? " is opened" : " is closed");
-      delay(50);
-      sendTelegramToChat_(chat_id, statusMsg);
+      String statusMsg = String("<b>") + String(doorController_->getDoorName()) + "</b>\n") + 
+                         String(status ? "Open" : "Closed");
+      sendTelegramToChat_(chat_id, statusMsg, true);
       Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
     }
     else {
-      delay(50);
-      sendTelegramToChat_(chat_id, "Unknown command!");
+      sendTelegramToChat_(chat_id, "Unknown command");
       Serial.println(F("[TG] Sent response: Unknown command!"));
     }
-    delay(100);
   }
 }
 
@@ -129,13 +121,11 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   if (queryData == "open_door") {
     if (doorController_->isWithinWorkingHours()) {
       doorController_->openDoor();
-      String msg = String("🔴 ") + String(doorController_->getDoorName()) + " opened";
-      delay(50);
-      sendTelegramToChat_(chatId, msg);
+      String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> opened";
+      sendTelegramToChat_(chatId, msg, true);
       Serial.printf("[TG] Sent response: %s\n", msg.c_str());
     } else {
-      String msg = String("⏰ ") + String(doorController_->getDoorName()) + " can only be opened during working hours";
-      delay(50);
+      String msg = String("Outside working hours");
       sendTelegramToChat_(chatId, msg);
       Serial.println(F("[TG] Door open denied - outside working hours"));
     }
@@ -143,22 +133,20 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   else if (queryData == "close_door") {
     if (doorController_->isWithinWorkingHours()) {
       doorController_->closeDoor();
-      String msg = String("🟢 ") + String(doorController_->getDoorName()) + " closed";
-      delay(50);
-      sendTelegramToChat_(chatId, msg);
+      String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> closed";
+      sendTelegramToChat_(chatId, msg, true);
       Serial.printf("[TG] Sent response: %s\n", msg.c_str());
     } else {
-      String msg = String("⏰ ") + String(doorController_->getDoorName()) + " can only be closed during working hours";
-      delay(50);
+      String msg = String("Outside working hours");
       sendTelegramToChat_(chatId, msg);
       Serial.println(F("[TG] Door close denied - outside working hours"));
     }
   }
   else if (queryData == "check_status") {
     int status = doorController_->getDoorStatus();
-    String statusMsg = String("🟡 ") + String(doorController_->getDoorName()) + (status ? " is opened" : " is closed");
-    delay(50);
-    sendTelegramToChat_(chatId, statusMsg);
+    String statusMsg = String("<b>") + String(doorController_->getDoorName()) + "</b>\n") + 
+                       String(status ? "Open" : "Closed");
+    sendTelegramToChat_(chatId, statusMsg, true);
     Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
   }
 }
@@ -183,22 +171,24 @@ bool Notifier::ensureDnsReady_() {
 void Notifier::answerCallbackQuery(String queryId) {
   if (!ensureDnsReady_()) return;
   
-  // Ensure previous connection is closed
+  // Ensure previous connection is fully closed
   if (s_callbackHttp.connected()) {
     s_callbackHttp.end();
   }
+  s_callbackClient.stop();
+  delay(5); // Brief delay to ensure connection is closed
   
   String url = String("https://api.telegram.org/bot") + bot_ + "/answerCallbackQuery";
   String body = "callback_query_id=" + queryId;
   
   s_callbackClient.setInsecure();
-  s_callbackClient.setTimeout(5000);
+  s_callbackClient.setTimeout(3000); // Faster timeout
   if (!s_callbackHttp.begin(s_callbackClient, url)) {
     Serial.println(F("[TG] Failed to begin callback query answer"));
     return;
   }
   s_callbackHttp.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  s_callbackHttp.setTimeout(5000);
+  s_callbackHttp.setTimeout(3000);
   
   int code = s_callbackHttp.POST(body);
   if (code > 0) {
@@ -208,9 +198,7 @@ void Notifier::answerCallbackQuery(String queryId) {
   s_callbackClient.stop();
   
   if (code != 200 && code > 0) {
-    Serial.printf("[TG] Failed to answer callback query: HTTP %d\n", code);
-  } else if (code <= 0) {
-    Serial.printf("[TG] Callback query answer error: %d\n", code);
+    Serial.printf("[TG] Callback query HTTP %d\n", code);
   }
 }
 
@@ -221,41 +209,48 @@ bool Notifier::sendTelegram_(const String& text, bool html) {
 bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, bool html) {
   if (!ensureDnsReady_()) return false;
   
-  // Ensure previous connection is closed
+  // Ensure previous connection is fully closed
   if (s_https.connected()) {
     s_https.end();
   }
+  s_tls.stop();
+  delay(10); // Brief delay to ensure connection is closed
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   String body = "chat_id=" + chatId + "&text=" + text;
   if (html) body += "&parse_mode=HTML";
 
   s_tls.setInsecure();
-  s_tls.setTimeout(10000);
+  s_tls.setTimeout(5000); // Reduced timeout for faster response
   if (!s_https.begin(s_tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection"));
     return false;
   }
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  s_https.setTimeout(10000);
+  s_https.setTimeout(5000);
 
   int code = s_https.POST(body);
-  String resp = s_https.getString();
+  if (code > 0) {
+    s_https.getString(); // Read response
+  }
   s_https.end();
   s_tls.stop();
 
-  Serial.printf("[TG] HTTP %d\n", code);
-  if (code != 200 && code > 0) Serial.println(resp);
+  if (code != 200 && code > 0) {
+    Serial.printf("[TG] HTTP %d\n", code);
+  }
   return code == 200;
 }
 
 bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keyboardJson) {
   if (!ensureDnsReady_()) return false;
   
-  // Ensure previous connection is closed
+  // Ensure previous connection is fully closed
   if (s_https.connected()) {
     s_https.end();
   }
+  s_tls.stop();
+  delay(10); // Brief delay to ensure connection is closed
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   
@@ -265,20 +260,23 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
   body += "&reply_markup=" + keyboardJson;
 
   s_tls.setInsecure();
-  s_tls.setTimeout(10000);
+  s_tls.setTimeout(5000); // Reduced timeout for faster response
   if (!s_https.begin(s_tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection (keyboard)"));
     return false;
   }
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  s_https.setTimeout(10000);
+  s_https.setTimeout(5000);
 
   int code = s_https.POST(body);
-  String resp = s_https.getString();
+  if (code > 0) {
+    s_https.getString(); // Read response
+  }
   s_https.end();
   s_tls.stop();
 
-  Serial.printf("[TG] HTTP %d (with keyboard)\n", code);
-  if (code != 200 && code > 0) Serial.println(resp);
+  if (code != 200 && code > 0) {
+    Serial.printf("[TG] HTTP %d (keyboard)\n", code);
+  }
   return code == 200;
 }
