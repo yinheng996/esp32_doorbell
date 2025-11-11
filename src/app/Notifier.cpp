@@ -6,11 +6,9 @@
 #include <UniversalTelegramBot.h>
 #include <IPAddress.h>
 
-static WiFiClientSecure s_tls;
 static WiFiClientSecure s_botClient;
 static HTTPClient       s_https;
 static HTTPClient       s_callbackHttp;
-static WiFiClientSecure s_callbackClient;
 static UniversalTelegramBot* s_bot = nullptr;
 
 Notifier::Notifier(const char* botToken, const char* chatId, const char* doorName)
@@ -53,7 +51,7 @@ bool Notifier::sendOnline()  { return sendTelegram_(String("<b>") + door_ + "</b
 bool Notifier::sendOffline() { return sendTelegram_(String("<b>") + door_ + "</b> offline", true); }
 bool Notifier::sendPressed() { 
   // Professional, minimal doorbell notification
-  String message = String("<b>") + String(door_) + String("</b>\n") +
+  String message = String("🔔 <b>") + String(door_) + String("</b>\n") +
                    String("Doorbell pressed");
   // Inline keyboard with clean buttons
   String keyboardJson = "{\"inline_keyboard\":[[{\"text\":\"Open\",\"callback_data\":\"open_door\"},{\"text\":\"Close\",\"callback_data\":\"close_door\"}],[{\"text\":\"Status\",\"callback_data\":\"check_status\"}]]}";
@@ -78,7 +76,7 @@ void Notifier::handleNewMessages(int numNewMessages) {
     if (text == "/open_door") {
       if (doorController_->isWithinWorkingHours()) {
         doorController_->openDoor();
-        String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> opened";
+        String msg = String("🔴 <b>") + String(doorController_->getDoorName()) + "</b> opened";
         sendTelegramToChat_(chat_id, msg, true);
         Serial.printf("[TG] Sent response: %s\n", msg.c_str());
       } else {
@@ -90,7 +88,7 @@ void Notifier::handleNewMessages(int numNewMessages) {
     else if (text == "/close_door") {
       if (doorController_->isWithinWorkingHours()) {
         doorController_->closeDoor();
-        String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> closed";
+        String msg = String("🟢 <b>") + String(doorController_->getDoorName()) + "</b> closed";
         sendTelegramToChat_(chat_id, msg, true);
         Serial.printf("[TG] Sent response: %s\n", msg.c_str());
       } else {
@@ -101,7 +99,7 @@ void Notifier::handleNewMessages(int numNewMessages) {
     }
     else if (text == "/read_status") {
       int status = doorController_->getDoorStatus();
-      String statusMsg = String("<b>") + String(doorController_->getDoorName()) + String("</b>\n") + 
+      String statusMsg = String("🟡 <b>") + String(doorController_->getDoorName()) + String("</b>\n") + 
                          String(status ? "Open" : "Closed");
       sendTelegramToChat_(chat_id, statusMsg, true);
       Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
@@ -121,7 +119,7 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   if (queryData == "open_door") {
     if (doorController_->isWithinWorkingHours()) {
       doorController_->openDoor();
-      String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> opened";
+      String msg = String("🔴 <b>") + String(doorController_->getDoorName()) + "</b> opened";
       sendTelegramToChat_(chatId, msg, true);
       Serial.printf("[TG] Sent response: %s\n", msg.c_str());
     } else {
@@ -133,7 +131,7 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   else if (queryData == "close_door") {
     if (doorController_->isWithinWorkingHours()) {
       doorController_->closeDoor();
-      String msg = String("<b>") + String(doorController_->getDoorName()) + "</b> closed";
+      String msg = String("🟢 <b>") + String(doorController_->getDoorName()) + "</b> closed";
       sendTelegramToChat_(chatId, msg, true);
       Serial.printf("[TG] Sent response: %s\n", msg.c_str());
     } else {
@@ -144,7 +142,7 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   }
   else if (queryData == "check_status") {
     int status = doorController_->getDoorStatus();
-    String statusMsg = String("<b>") + String(doorController_->getDoorName()) + String("</b>\n") + 
+    String statusMsg = String("🟡 <b>") + String(doorController_->getDoorName()) + String("</b>\n") + 
                        String(status ? "Open" : "Closed");
     sendTelegramToChat_(chatId, statusMsg, true);
     Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
@@ -171,21 +169,20 @@ bool Notifier::ensureDnsReady_() {
 void Notifier::answerCallbackQuery(String queryId) {
   if (!ensureDnsReady_()) return;
   
+  // Create fresh client instance for this request
+  WiFiClientSecure callbackClient;
+  
   // Ensure previous connection is fully closed
   if (s_callbackHttp.connected()) {
     s_callbackHttp.end();
-  }
-  // Only stop if client is actually connected
-  if (s_callbackClient.connected()) {
-    s_callbackClient.stop();
   }
   
   String url = String("https://api.telegram.org/bot") + bot_ + "/answerCallbackQuery";
   String body = "callback_query_id=" + queryId;
   
-  s_callbackClient.setInsecure();
-  s_callbackClient.setTimeout(3000);
-  if (!s_callbackHttp.begin(s_callbackClient, url)) {
+  callbackClient.setInsecure();
+  callbackClient.setTimeout(3000);
+  if (!s_callbackHttp.begin(callbackClient, url)) {
     Serial.println(F("[TG] Failed to begin callback query answer"));
     return;
   }
@@ -197,10 +194,7 @@ void Notifier::answerCallbackQuery(String queryId) {
     s_callbackHttp.getString();
   }
   s_callbackHttp.end();
-  // Only stop if client is actually connected
-  if (s_callbackClient.connected()) {
-    s_callbackClient.stop();
-  }
+  callbackClient.stop();
   
   if (code != 200 && code > 0) {
     Serial.printf("[TG] Callback query HTTP %d\n", code);
@@ -214,22 +208,21 @@ bool Notifier::sendTelegram_(const String& text, bool html) {
 bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, bool html) {
   if (!ensureDnsReady_()) return false;
   
+  // Create fresh client instance for this request
+  WiFiClientSecure tls;
+  
   // Ensure previous connection is fully closed
   if (s_https.connected()) {
     s_https.end();
-  }
-  // Only stop if client is actually connected
-  if (s_tls.connected()) {
-    s_tls.stop();
   }
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   String body = "chat_id=" + chatId + "&text=" + text;
   if (html) body += "&parse_mode=HTML";
 
-  s_tls.setInsecure();
-  s_tls.setTimeout(5000);
-  if (!s_https.begin(s_tls, url)) {
+  tls.setInsecure();
+  tls.setTimeout(5000);
+  if (!s_https.begin(tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection"));
     return false;
   }
@@ -241,10 +234,7 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
     s_https.getString(); // Read response
   }
   s_https.end();
-  // Only stop if client is actually connected
-  if (s_tls.connected()) {
-    s_tls.stop();
-  }
+  tls.stop();
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d\n", code);
@@ -255,13 +245,12 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
 bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keyboardJson) {
   if (!ensureDnsReady_()) return false;
   
+  // Create fresh client instance for this request
+  WiFiClientSecure tls;
+  
   // Ensure previous connection is fully closed
   if (s_https.connected()) {
     s_https.end();
-  }
-  // Only stop if client is actually connected
-  if (s_tls.connected()) {
-    s_tls.stop();
   }
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
@@ -271,9 +260,9 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
   body += "&parse_mode=HTML";
   body += "&reply_markup=" + keyboardJson;
 
-  s_tls.setInsecure();
-  s_tls.setTimeout(5000);
-  if (!s_https.begin(s_tls, url)) {
+  tls.setInsecure();
+  tls.setTimeout(5000);
+  if (!s_https.begin(tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection (keyboard)"));
     return false;
   }
@@ -285,10 +274,7 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
     s_https.getString(); // Read response
   }
   s_https.end();
-  // Only stop if client is actually connected
-  if (s_tls.connected()) {
-    s_tls.stop();
-  }
+  tls.stop();
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d (keyboard)\n", code);

@@ -21,6 +21,7 @@ private:
   Callback cb_ {nullptr};
 
   volatile bool interruptFlag_ {false};
+  volatile unsigned long interruptTimeMs_ {0};
   int lastStable_ {HIGH};
   int lastRead_   {HIGH};
   unsigned long lastChangeMs_ {0};
