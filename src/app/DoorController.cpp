@@ -10,8 +10,8 @@ static UniversalTelegramBot* s_bot = nullptr;
 static WebServer* s_server = nullptr;
 static DoorController* s_doorController = nullptr;
 
-DoorController::DoorController(const char* botToken, int doorPin)
-  : botToken_(botToken), doorPin_(doorPin), doorStatus_(0) {
+DoorController::DoorController(const char* botToken, int doorPin, const char* doorName, FnWithinHours fnWithinHours)
+  : botToken_(botToken), doorPin_(doorPin), doorStatus_(0), doorName_(doorName), fnWithinHours_(fnWithinHours) {
 }
 
 void DoorController::begin() {
@@ -45,6 +45,18 @@ void DoorController::loop() {
     if (numNewMessages > 0) {
       handleNewMessages(numNewMessages);
     }
+    
+    // Handle callback queries (inline keyboard button presses)
+    for (int i = 0; i < numNewMessages; i++) {
+      if (s_bot->messages[i].type == "callback_query") {
+        String queryId = s_bot->messages[i].query_id;
+        String queryData = s_bot->messages[i].text;
+        String chatId = String(s_bot->messages[i].chat_id);
+        handleCallbackQuery(queryId, queryData);
+        // Answer callback query
+        s_bot->endQuery(queryId, "", false);
+      }
+    }
   }
   
   // Handle web server requests
@@ -65,6 +77,13 @@ int DoorController::getDoorStatus() const {
   return doorStatus_;
 }
 
+bool DoorController::isWithinWorkingHours() const {
+  if (fnWithinHours_) {
+    return fnWithinHours_();
+  }
+  return true; // Default to allowing if no function provided
+}
+
 void DoorController::handleOpenDoor() {
   digitalWrite(doorPin_, HIGH);
   doorStatus_ = 1;
@@ -81,29 +100,107 @@ void DoorController::handleNewMessages(int numNewMessages) {
   if (!s_bot) return;
   
   for (int i = 0; i < numNewMessages; i++) {
+    // Skip callback queries, they're handled separately
+    if (s_bot->messages[i].type == "callback_query") {
+      continue;
+    }
+    
     String chat_id = String(s_bot->messages[i].chat_id);
     String text = s_bot->messages[i].text;
     
     Serial.printf("[TG] Received command: %s from chat_id: %s\n", text.c_str(), chat_id.c_str());
     
     if (text == "/open_door") {
-      handleOpenDoor();
-      s_bot->sendMessage(chat_id, "Door opened!");
-      Serial.println(F("[TG] Sent response: Door opened!"));
+      if (isWithinWorkingHours()) {
+        handleOpenDoor();
+        String msg = String("🔴 ") + doorName_ + " opened";
+        s_bot->sendMessage(chat_id, msg);
+        Serial.printf("[TG] Sent response: %s\n", msg.c_str());
+      } else {
+        String msg = String("⏰ ") + doorName_ + " can only be opened during working hours";
+        s_bot->sendMessage(chat_id, msg);
+        Serial.println(F("[TG] Door open denied - outside working hours"));
+      }
     }
     else if (text == "/close_door") {
-      handleCloseDoor();
-      s_bot->sendMessage(chat_id, "Door closed!");
-      Serial.println(F("[TG] Sent response: Door closed!"));
+      if (isWithinWorkingHours()) {
+        handleCloseDoor();
+        String msg = String("🟢 ") + doorName_ + " closed";
+        s_bot->sendMessage(chat_id, msg);
+        Serial.printf("[TG] Sent response: %s\n", msg.c_str());
+      } else {
+        String msg = String("⏰ ") + doorName_ + " can only be closed during working hours";
+        s_bot->sendMessage(chat_id, msg);
+        Serial.println(F("[TG] Door close denied - outside working hours"));
+      }
     }
     else if (text == "/read_status") {
-      String statusMsg = doorStatus_ ? "Door is opened!" : "Door is closed!";
+      String statusMsg = doorStatus_ ? (String("🔴 ") + doorName_ + " is opened") : (String("🟢 ") + doorName_ + " is closed");
       s_bot->sendMessage(chat_id, statusMsg);
       Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
     }
     else {
       s_bot->sendMessage(chat_id, "Unknown command!");
       Serial.println(F("[TG] Sent response: Unknown command!"));
+    }
+  }
+}
+
+void DoorController::handleCallbackQuery(String queryId, String queryData) {
+  if (!s_bot) return;
+  
+  Serial.printf("[TG] Callback query received: %s\n", queryData.c_str());
+  
+  if (queryData == "open_door") {
+    String chat_id;
+    // Find the chat_id from the callback query
+    for (int i = 0; i < s_bot->getUpdates(s_bot->last_message_received + 1); i++) {
+      if (s_bot->messages[i].type == "callback_query" && s_bot->messages[i].query_id == queryId) {
+        chat_id = String(s_bot->messages[i].chat_id);
+        break;
+      }
+    }
+    
+    if (isWithinWorkingHours()) {
+      handleOpenDoor();
+      String msg = String("🔴 ") + doorName_ + " opened";
+      s_bot->sendMessage(chat_id, msg);
+      Serial.printf("[TG] Sent response: %s\n", msg.c_str());
+    } else {
+      String msg = String("⏰ ") + doorName_ + " can only be opened during working hours";
+      s_bot->sendMessage(chat_id, msg);
+      Serial.println(F("[TG] Door open denied - outside working hours"));
+    }
+  }
+  else if (queryData == "close_door") {
+    String chat_id;
+    for (int i = 0; i < s_bot->getUpdates(s_bot->last_message_received + 1); i++) {
+      if (s_bot->messages[i].type == "callback_query" && s_bot->messages[i].query_id == queryId) {
+        chat_id = String(s_bot->messages[i].chat_id);
+        break;
+      }
+    }
+    
+    if (isWithinWorkingHours()) {
+      handleCloseDoor();
+      String msg = String("🟢 ") + doorName_ + " closed";
+      s_bot->sendMessage(chat_id, msg);
+      Serial.printf("[TG] Sent response: %s\n", msg.c_str());
+    } else {
+      String msg = String("⏰ ") + doorName_ + " can only be closed during working hours";
+      s_bot->sendMessage(chat_id, msg);
+      Serial.println(F("[TG] Door close denied - outside working hours"));
+    }
+  }
+  else if (queryData == "check_status") {
+    String statusMsg = doorStatus_ ? (String("🔴 ") + doorName_ + " is opened") : (String("🟢 ") + doorName_ + " is closed");
+    for (int i = 0; i < s_bot->getUpdates(s_bot->last_message_received + 1); i++) {
+      if (s_bot->messages[i].type == "callback_query" && s_bot->messages[i].query_id == queryId) {
+        String chat_id = String(s_bot->messages[i].chat_id);
+        s_bot->sendMessage(chat_id, statusMsg);
+        Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
+        break;
+      }
     }
   }
 }
@@ -124,18 +221,28 @@ void DoorController::handleRequest() {
   Serial.printf("[HTTP] Received action: %s\n", action.c_str());
   
   if (action == "openDoor") {
-    handleOpenDoor();
-    doorStatus_ = 1;
-    s_server->send(200, "application/json", "{\"status\":\"success\"}");
-    Serial.println(F("[HTTP] Sent response: success"));
-    delay(1000);
+    if (isWithinWorkingHours()) {
+      handleOpenDoor();
+      doorStatus_ = 1;
+      s_server->send(200, "application/json", "{\"status\":\"success\"}");
+      Serial.println(F("[HTTP] Sent response: success"));
+      delay(1000);
+    } else {
+      s_server->send(403, "application/json", "{\"status\":\"error\",\"message\":\"Door can only be opened during working hours\"}");
+      Serial.println(F("[HTTP] Door open denied - outside working hours"));
+    }
   }
   else if (action == "closeDoor") {
-    handleCloseDoor();
-    doorStatus_ = 0;
-    s_server->send(200, "application/json", "{\"status\":\"success\"}");
-    Serial.println(F("[HTTP] Sent response: success"));
-    delay(1000);
+    if (isWithinWorkingHours()) {
+      handleCloseDoor();
+      doorStatus_ = 0;
+      s_server->send(200, "application/json", "{\"status\":\"success\"}");
+      Serial.println(F("[HTTP] Sent response: success"));
+      delay(1000);
+    } else {
+      s_server->send(403, "application/json", "{\"status\":\"error\",\"message\":\"Door can only be closed during working hours\"}");
+      Serial.println(F("[HTTP] Door close denied - outside working hours"));
+    }
   }
   else if (action == "getDoorStatus") {
     DynamicJsonDocument resDoc(1024);

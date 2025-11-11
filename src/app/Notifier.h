@@ -11,6 +11,7 @@ public:
 
 private:
   bool sendTelegram_(const String& text, bool html=false);
+  bool sendTelegramWithKeyboard_(const String& text, const String& keyboardJson);
   const char* bot_;
   const char* chat_;
   const char* door_;

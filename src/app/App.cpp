@@ -22,11 +22,14 @@ static Notifier    g_notifier{TG_BOT_TOKEN, TG_CHAT_ID, DOOR_NAME};
 static OfflineLog  g_log{"/offline_presses.log", /*rotateKB=*/32};
 static Button      g_btn{BTN_PIN, /*activeLow=*/true, DEBOUNCE_MS};
 static BusinessHours g_hours{WORK_HOURS, WORK_TZ, WORK_ALLOW_BEFORE_SYNC, WORK_VALID_EPOCH};
-static DoorController g_doorController{TG_BOT_TOKEN, DOOR_PIN};
 
 // Scheduler asks BusinessHours; we use a thunk so Scheduler can call a plain fn ptr
 static bool withinThunk_() { return g_hours.withinNow(); }
 static Scheduler g_sched{withinThunk_};
+
+// Door controller also needs to check working hours
+static bool doorWithinThunk_() { return g_sched.within(); }
+static DoorController g_doorController{TG_BOT_TOKEN, DOOR_PIN, DOOR_NAME, doorWithinThunk_};
 
 // ---------- App ----------
 void App::begin() {
