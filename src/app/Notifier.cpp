@@ -7,6 +7,8 @@
 #include <IPAddress.h>
 
 static WiFiClientSecure s_botClient;
+static WiFiClientSecure s_tls;
+static WiFiClientSecure s_callbackClient;
 static HTTPClient       s_https;
 static HTTPClient       s_callbackHttp;
 static UniversalTelegramBot* s_bot = nullptr;
@@ -169,20 +171,17 @@ bool Notifier::ensureDnsReady_() {
 void Notifier::answerCallbackQuery(String queryId) {
   if (!ensureDnsReady_()) return;
   
-  // Create fresh client instance for this request
-  WiFiClientSecure callbackClient;
-  
   // Ensure previous connection is fully closed
-  if (s_callbackHttp.connected()) {
-    s_callbackHttp.end();
-  }
+  s_callbackHttp.end();
+  s_callbackClient.stop();
+  delay(10); // Small delay to allow socket cleanup
   
   String url = String("https://api.telegram.org/bot") + bot_ + "/answerCallbackQuery";
   String body = "callback_query_id=" + queryId;
   
-  callbackClient.setInsecure();
-  callbackClient.setTimeout(3000);
-  if (!s_callbackHttp.begin(callbackClient, url)) {
+  s_callbackClient.setInsecure();
+  s_callbackClient.setTimeout(3000);
+  if (!s_callbackHttp.begin(s_callbackClient, url)) {
     Serial.println(F("[TG] Failed to begin callback query answer"));
     return;
   }
@@ -194,7 +193,7 @@ void Notifier::answerCallbackQuery(String queryId) {
     s_callbackHttp.getString();
   }
   s_callbackHttp.end();
-  callbackClient.stop();
+  s_callbackClient.stop();
   
   if (code != 200 && code > 0) {
     Serial.printf("[TG] Callback query HTTP %d\n", code);
@@ -208,21 +207,18 @@ bool Notifier::sendTelegram_(const String& text, bool html) {
 bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, bool html) {
   if (!ensureDnsReady_()) return false;
   
-  // Create fresh client instance for this request
-  WiFiClientSecure tls;
-  
   // Ensure previous connection is fully closed
-  if (s_https.connected()) {
-    s_https.end();
-  }
+  s_https.end();
+  s_tls.stop();
+  delay(10); // Small delay to allow socket cleanup
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   String body = "chat_id=" + chatId + "&text=" + text;
   if (html) body += "&parse_mode=HTML";
 
-  tls.setInsecure();
-  tls.setTimeout(5000);
-  if (!s_https.begin(tls, url)) {
+  s_tls.setInsecure();
+  s_tls.setTimeout(5000);
+  if (!s_https.begin(s_tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection"));
     return false;
   }
@@ -234,7 +230,7 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
     s_https.getString(); // Read response
   }
   s_https.end();
-  tls.stop();
+  s_tls.stop();
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d\n", code);
@@ -245,13 +241,10 @@ bool Notifier::sendTelegramToChat_(const String& chatId, const String& text, boo
 bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keyboardJson) {
   if (!ensureDnsReady_()) return false;
   
-  // Create fresh client instance for this request
-  WiFiClientSecure tls;
-  
   // Ensure previous connection is fully closed
-  if (s_https.connected()) {
-    s_https.end();
-  }
+  s_https.end();
+  s_tls.stop();
+  delay(10); // Small delay to allow socket cleanup
   
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
   
@@ -260,9 +253,9 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
   body += "&parse_mode=HTML";
   body += "&reply_markup=" + keyboardJson;
 
-  tls.setInsecure();
-  tls.setTimeout(5000);
-  if (!s_https.begin(tls, url)) {
+  s_tls.setInsecure();
+  s_tls.setTimeout(5000);
+  if (!s_https.begin(s_tls, url)) {
     Serial.println(F("[TG] Failed to begin HTTPS connection (keyboard)"));
     return false;
   }
@@ -274,7 +267,7 @@ bool Notifier::sendTelegramWithKeyboard_(const String& text, const String& keybo
     s_https.getString(); // Read response
   }
   s_https.end();
-  tls.stop();
+  s_tls.stop();
 
   if (code != 200 && code > 0) {
     Serial.printf("[TG] HTTP %d (keyboard)\n", code);
