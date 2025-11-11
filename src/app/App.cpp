@@ -102,6 +102,7 @@ void App::onPressThunk_() {
 }
 
 void App::onPress_() {
+  Serial.println(F("[BTN] >>> BUTTON PRESSED <<<"));
   const uint32_t nowMs = millis();
   if (nowMs - lastPressMs_ < COOLDOWN_MS) {
     Serial.println(F("[BTN] press ignored (cooldown)"));
@@ -110,6 +111,7 @@ void App::onPress_() {
   lastPressMs_ = nowMs;
 
   const bool within = g_sched.within();
+  Serial.printf("[BTN] Within working hours: %s\n", within ? "yes" : "no");
 
   if (within) {
     // Guarantee ordering at boundary: announce+summary before first press

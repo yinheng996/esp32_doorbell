@@ -25,11 +25,11 @@ void Notifier::begin() {
 
 void Notifier::loop() {
   // Handle Telegram bot messages and callback queries
+  // Keep this non-blocking - only process if we have messages
   if (s_bot && WiFi.status() == WL_CONNECTED) {
     int numNewMessages = s_bot->getUpdates(s_bot->last_message_received + 1);
     if (numNewMessages > 0) {
       handleNewMessages(numNewMessages);
-      delay(100);
       
       // Handle callback queries (inline keyboard button presses)
       for (int i = 0; i < numNewMessages; i++) {
@@ -38,9 +38,7 @@ void Notifier::loop() {
           String queryData = s_bot->messages[i].text;
           String chatId = String(s_bot->messages[i].chat_id);
           handleCallbackQuery(queryId, queryData, chatId);
-          delay(100);
           answerCallbackQuery(queryId);
-          delay(100);
         }
       }
     }
@@ -109,7 +107,7 @@ void Notifier::handleNewMessages(int numNewMessages) {
     }
     else if (text == "/read_status") {
       int status = doorController_->getDoorStatus();
-      String statusMsg = status ? (String("🔴 ") + String(doorController_->getDoorName()) + " is opened") : (String("🟢 ") + String(doorController_->getDoorName()) + " is closed");
+      String statusMsg = String("🟡 ") + String(doorController_->getDoorName()) + (status ? " is opened" : " is closed");
       delay(50);
       sendTelegramToChat_(chat_id, statusMsg);
       Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
@@ -158,7 +156,7 @@ void Notifier::handleCallbackQuery(String queryId, String queryData, String chat
   }
   else if (queryData == "check_status") {
     int status = doorController_->getDoorStatus();
-    String statusMsg = status ? (String("🔴 ") + String(doorController_->getDoorName()) + " is opened") : (String("🟢 ") + String(doorController_->getDoorName()) + " is closed");
+    String statusMsg = String("🟡 ") + String(doorController_->getDoorName()) + (status ? " is opened" : " is closed");
     delay(50);
     sendTelegramToChat_(chatId, statusMsg);
     Serial.printf("[TG] Sent response: %s\n", statusMsg.c_str());
