@@ -7,6 +7,7 @@
 #include "app/Button.h"
 #include "app/Scheduler.h"
 #include "app/BusinessHours.h"
+#include "app/DoorController.h"
 
 #include "config.h"
 #include "credentials.h"
@@ -21,6 +22,7 @@ static Notifier    g_notifier{TG_BOT_TOKEN, TG_CHAT_ID, DOOR_NAME};
 static OfflineLog  g_log{"/offline_presses.log", /*rotateKB=*/32};
 static Button      g_btn{BTN_PIN, /*activeLow=*/true, DEBOUNCE_MS};
 static BusinessHours g_hours{WORK_HOURS, WORK_TZ, WORK_ALLOW_BEFORE_SYNC, WORK_VALID_EPOCH};
+static DoorController g_doorController{TG_BOT_TOKEN, DOOR_PIN};
 
 // Scheduler asks BusinessHours; we use a thunk so Scheduler can call a plain fn ptr
 static bool withinThunk_() { return g_hours.withinNow(); }
@@ -57,6 +59,9 @@ void App::begin() {
   } else {
     Serial.println(F("[SCHED] booted outside working hours"));
   }
+  
+  // Door controller (Telegram bot and web server)
+  g_doorController.begin();
 }
 
 void App::loop() {
@@ -64,6 +69,7 @@ void App::loop() {
   g_net.loop();
   g_time.loop();
   g_btn.loop();
+  g_doorController.loop();
 
   // Edge detection
   const auto edge = g_sched.poll(); // Scheduler::Edge
