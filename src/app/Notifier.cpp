@@ -10,12 +10,20 @@ static HTTPClient       s_https;
 Notifier::Notifier(const char* botToken, const char* chatId, const char* doorName)
 : bot_(botToken), chat_(chatId), door_(doorName) {}
 
-bool Notifier::sendOnline()  { return sendTelegram_(String("🔌 <b>") + door_ + "</b> online", true); }
-bool Notifier::sendOffline() { return sendTelegram_(String("🔕 <b>") + door_ + "</b> offline", true); }
-bool Notifier::sendPressed() { return sendTelegram_(String("🔔 <b>") + door_ + "</b> rang!", true); }
+bool Notifier::sendOnline()  { 
+  String msg = String("🔌 <b>") + door_ + "</b> online\n";
+  msg += "☀️ Good morning makers!";
+  return sendTelegram_(msg, true); 
+}
+bool Notifier::sendOffline() { 
+  String msg = String("🔕 <b>") + door_ + "</b> offline\n";
+  msg += "🌙 Enjoy your evening!";
+  return sendTelegram_(msg, true); 
+}
+bool Notifier::sendPressed() { return sendTelegram_(String("🔔 <b>") + door_ + "</b> rung", true); }
 bool Notifier::sendPressedWithButton() {
   return sendTelegramWithButton_(
-    String("🔔 <b>") + door_ + "</b> doorbell pressed",
+    String("🔔 <b>") + door_ + "</b> rung",
     "🔓 Release Door",
     "release_door"
   );
