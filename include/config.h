@@ -6,5 +6,6 @@
 #define COOLDOWN_MS 1000UL  // 1 second cooldown between presses
 
 #define RELAY_PIN   33
+
 #define RELAY_ACTIVE_LOW true
 #define RELAY_PULSE_MS 3000UL
