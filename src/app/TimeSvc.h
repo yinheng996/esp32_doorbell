@@ -13,4 +13,5 @@ public:
 private:
   const char* tz_;
   uint32_t timeoutMs_;
+  uint32_t lastRetryMs_{0};  // for NTP retry in loop()
 };

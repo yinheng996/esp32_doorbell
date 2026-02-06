@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <time.h>
 
 class Scheduler {
 public:
@@ -16,4 +17,5 @@ private:
   bool last_ {false};
   uint32_t pollMs_ {1000};
   uint32_t lastTick_ {0};
+  uint32_t lastMinute_ {0xFFFFFFFF};  // force check when time first valid
 };
