@@ -126,14 +126,24 @@ void App::onReleaseThunk_(const String& userName) {
 }
 
 void App::onRelease_(const String& userName) {
-  Serial.printf("[APP] Door release triggered by: %s\n", userName.c_str());
-  g_relay.trigger();
-  
   time_t now = g_time.epoch();
-  if (now > 0 && g_net.connected()) {
-    g_notifier.sendReleaseConfirm(userName, now);
+  const bool within = g_sched.within();
+
+  if (within) {
+    Serial.printf("[APP] Door release triggered by: %s\n", userName.c_str());
+    g_relay.trigger();
+    if (now > 0 && g_net.connected()) {
+      g_notifier.sendReleaseConfirm(userName, now);
+    } else {
+      Serial.println(F("[APP] Unable to send release confirmation"));
+    }
   } else {
-    Serial.println(F("[APP] Unable to send release confirmation"));
+    Serial.printf("[APP] Door release rejected (off-hours) by: %s\n", userName.c_str());
+    if (now > 0 && g_net.connected()) {
+      g_notifier.sendReleaseRejected(userName, now);
+    } else {
+      Serial.println(F("[APP] Unable to send rejection notice"));
+    }
   }
 }
 

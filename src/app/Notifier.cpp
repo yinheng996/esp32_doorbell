@@ -41,6 +41,17 @@ bool Notifier::sendReleaseConfirm(const String& userName, time_t timestamp) {
   return sendTelegram_(msg, true);
 }
 
+bool Notifier::sendReleaseRejected(const String& userName, time_t timestamp) {
+  struct tm lt{};
+  localtime_r(&timestamp, &lt);
+  char timeStr[32];
+  snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", lt.tm_hour, lt.tm_min, lt.tm_sec);
+  
+  String msg = String("🚫 <b>") + door_ + "</b> Rejected Door Release\n";
+  msg += "👤 " + userName + " at " + timeStr;
+  return sendTelegram_(msg, true);
+}
+
 bool Notifier::sendTelegram_(const String& text, bool html) {
   if (WiFi.status() != WL_CONNECTED) return false;
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";

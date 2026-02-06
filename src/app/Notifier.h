@@ -10,6 +10,7 @@ public:
   bool sendPressed();
   bool sendPressedWithButton();              // doorbell notification with inline "Release Door" button
   bool sendReleaseConfirm(const String& userName, time_t timestamp); // "Door released\nBy: [user] at HH:MM:SS"
+  bool sendReleaseRejected(const String& userName, time_t timestamp); // "Rejected Door Release\n[user] at HH:MM:SS"
   bool sendSummary(const String& text);
   void pollUpdates(void (*onRelease)(const String&)); // poll for callback queries, call onRelease with user info
 
