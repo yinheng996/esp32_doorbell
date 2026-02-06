@@ -7,6 +7,7 @@
 #include "app/Button.h"
 #include "app/Scheduler.h"
 #include "app/BusinessHours.h"
+#include "app/Relay.h"
 
 #include "config.h"
 #include "credentials.h"
@@ -21,6 +22,7 @@ static Notifier    g_notifier{TG_BOT_TOKEN, TG_CHAT_ID, DOOR_NAME};
 static OfflineLog  g_log{"/offline_presses.log", /*rotateKB=*/32};
 static Button      g_btn{BTN_PIN, /*activeLow=*/true, DEBOUNCE_MS};
 static BusinessHours g_hours{WORK_HOURS, WORK_TZ, WORK_ALLOW_BEFORE_SYNC, WORK_VALID_EPOCH};
+static Relay       g_relay{RELAY_PIN, RELAY_ACTIVE_LOW, RELAY_PULSE_MS};
 
 // Scheduler asks BusinessHours; we use a thunk so Scheduler can call a plain fn ptr
 static bool withinThunk_() { return g_hours.withinNow(); }
@@ -34,6 +36,7 @@ void App::begin() {
 
   // Hardware
   g_btn.begin(&App::onPressThunk_);
+  g_relay.begin();
 
   // Connectivity
   g_net.begin();
@@ -64,6 +67,10 @@ void App::loop() {
   g_net.loop();
   g_time.loop();
   g_btn.loop();
+  g_relay.loop();
+
+  // Poll for Telegram updates (release button callbacks)
+  g_notifier.pollUpdates(&App::onReleaseThunk_);
 
   // Edge detection
   const auto edge = g_sched.poll(); // Scheduler::Edge
@@ -103,7 +110,7 @@ void App::onPress_() {
     }
 
     if (g_net.connected()) {
-      g_notifier.sendPressed();
+      g_notifier.sendPressedWithButton();
     } else {
       Serial.println(F("[NET] not connected; press ignored in-hours"));
     }
@@ -111,6 +118,22 @@ void App::onPress_() {
     const uint32_t epochNow = g_time.epoch(); // 0 if not synced yet (ok)
     g_log.logPress(epochNow);
     Serial.println(F("[SCHED] queued press (off-hours)"));
+  }
+}
+
+void App::onReleaseThunk_(const String& userName) {
+  if (g_app) g_app->onRelease_(userName);
+}
+
+void App::onRelease_(const String& userName) {
+  Serial.printf("[APP] Door release triggered by: %s\n", userName.c_str());
+  g_relay.trigger();
+  
+  time_t now = g_time.epoch();
+  if (now > 0 && g_net.connected()) {
+    g_notifier.sendReleaseConfirm(userName, now);
+  } else {
+    Serial.println(F("[APP] Unable to send release confirmation"));
   }
 }
 

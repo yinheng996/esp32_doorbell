@@ -8,9 +8,11 @@ public:
 
 private:
   // Event handlers
-  static void onPressThunk_();     // static trampoline -> calls instance
+  static void onPressThunk_();              // static trampoline -> calls instance
+  static void onReleaseThunk_(const String& userName); // static trampoline for door release
   void        onPress_();
-  void        handleEdge_(int edge); // 0=None, 1=Entered, 2=Left
+  void        onRelease_(const String& userName);
+  void        handleEdge_(int edge);        // 0=None, 1=Entered, 2=Left
 
   // Ordering guard: ensure "online + summary" before first in-hours press
   bool transitionHandled_ = true;
