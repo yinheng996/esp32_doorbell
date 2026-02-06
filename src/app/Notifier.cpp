@@ -121,7 +121,7 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
   s_https.end();
 
   // Parse JSON response
-  DynamicJsonDocument doc(4096);
+  JsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
     Serial.printf("[TG] JSON parse error: %s\n", error.c_str());
@@ -134,7 +134,7 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
     if (updateId > lastUpdateId_) lastUpdateId_ = updateId;
 
     // Check for callback_query
-    if (update.containsKey("callback_query")) {
+    if (update["callback_query"].is<JsonObject>()) {
       JsonObject query = update["callback_query"];
       String callbackData = query["data"].as<String>();
       
@@ -144,12 +144,12 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
         // Extract user information
         JsonObject from = query["from"];
         String userName = "Unknown";
-        if (from.containsKey("first_name")) {
+        if (from["first_name"].is<const char*>()) {
           userName = from["first_name"].as<String>();
-          if (from.containsKey("last_name")) {
+          if (from["last_name"].is<const char*>()) {
             userName += " " + from["last_name"].as<String>();
           }
-        } else if (from.containsKey("username")) {
+        } else if (from["username"].is<const char*>()) {
           userName = "@" + from["username"].as<String>();
         }
         
