@@ -18,7 +18,16 @@ void TimeSvc::begin() {
   }
 }
 
-void TimeSvc::loop() { /* no-op */ }
+void TimeSvc::loop() {
+  // If time never synced (e.g. cold boot with slow WiFi), retry NTP periodically
+  // so we eventually get valid time and can detect "enter working hours" in the morning.
+  if (synced()) return;
+  const uint32_t now = millis();
+  constexpr uint32_t retryIntervalMs = 60000;  // 1 minute
+  if (lastRetryMs_ != 0 && (now - lastRetryMs_) < retryIntervalMs) return;
+  lastRetryMs_ = now;
+  configTzTime(tz_, NTP1, NTP2, NTP3);
+}
 
 uint32_t TimeSvc::epoch() const { return (uint32_t)time(nullptr); }
 
