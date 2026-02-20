@@ -22,6 +22,5 @@ private:
   
   volatile bool triggered_ {false};           // ISR sets this flag
   volatile unsigned long triggerTimeMs_ {0};  // ISR records timestamp
-  volatile int triggerState_ {HIGH};          // ISR records pin state at trigger
   unsigned long lastFireMs_ {0};              // Last time callback fired
 };

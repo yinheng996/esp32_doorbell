@@ -16,5 +16,8 @@ private:
 
   // Ordering guard: ensure "online + summary" before first in-hours press
   bool transitionHandled_ = true;
-  uint32_t lastPressMs_ = 0;
+  uint32_t lastPressEventMs_ = 0;
+  uint32_t lastNotifyMs_ = 0;
+  bool lastNetConnected_ = false;
+  bool pendingOnlineAnnounce_ = false;
 };

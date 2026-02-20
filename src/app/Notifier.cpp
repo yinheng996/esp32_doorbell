@@ -10,17 +10,22 @@ static HTTPClient       s_https;
 Notifier::Notifier(const char* botToken, const char* chatId, const char* doorName)
 : bot_(botToken), chat_(chatId), door_(doorName) {}
 
-bool Notifier::sendOnline()  { 
+bool Notifier::sendOnline() {
   String msg = String("🔌 <b>") + door_ + "</b> online\n";
   msg += "☀️ Good morning makers!";
-  return sendTelegram_(msg, true); 
+  return sendTelegram_(msg, true);
 }
-bool Notifier::sendOffline() { 
+
+bool Notifier::sendOffline() {
   String msg = String("🔕 <b>") + door_ + "</b> offline\n";
   msg += "🌙 Enjoy your evening!";
-  return sendTelegram_(msg, true); 
+  return sendTelegram_(msg, true);
 }
-bool Notifier::sendPressed() { return sendTelegram_(String("🔔 <b>") + door_ + "</b> rung", true); }
+
+bool Notifier::sendPressed() {
+  return sendTelegram_(String("🔔 <b>") + door_ + "</b> rung", true);
+}
+
 bool Notifier::sendPressedWithButton() {
   return sendTelegramWithButton_(
     String("🔔 <b>") + door_ + "</b> rung",
@@ -28,14 +33,17 @@ bool Notifier::sendPressedWithButton() {
     "release_door"
   );
 }
-bool Notifier::sendSummary(const String& text) { return sendTelegram_(text, false); }
+
+bool Notifier::sendSummary(const String& text) {
+  return sendTelegram_(text, false);
+}
 
 bool Notifier::sendReleaseConfirm(const String& userName, time_t timestamp) {
   struct tm lt{};
   localtime_r(&timestamp, &lt);
   char timeStr[32];
   snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", lt.tm_hour, lt.tm_min, lt.tm_sec);
-  
+
   String msg = String("🔓 <b>") + door_ + "</b> door released\n";
   msg += "👤 " + userName + " at " + timeStr;
   return sendTelegram_(msg, true);
@@ -46,8 +54,8 @@ bool Notifier::sendReleaseRejected(const String& userName, time_t timestamp) {
   localtime_r(&timestamp, &lt);
   char timeStr[32];
   snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", lt.tm_hour, lt.tm_min, lt.tm_sec);
-  
-  String msg = String("🚫 <b>") + door_ + "</b> Rejected Door Release\n";
+
+  String msg = "🚫 Door Release Rejected\n";
   msg += "👤 " + userName + " at " + timeStr;
   return sendTelegram_(msg, true);
 }
@@ -60,6 +68,8 @@ bool Notifier::sendTelegram_(const String& text, bool html) {
 
   s_tls.setInsecure(); // TODO: setCACert for production
   if (!s_https.begin(s_tls, url)) return false;
+  s_https.setConnectTimeout(connectTimeoutMs_);
+  s_https.setTimeout(requestTimeoutMs_);
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int code = s_https.POST(body);
@@ -74,18 +84,20 @@ bool Notifier::sendTelegram_(const String& text, bool html) {
 bool Notifier::sendTelegramWithButton_(const String& text, const String& buttonText, const String& callbackData) {
   if (WiFi.status() != WL_CONNECTED) return false;
   String url = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
-  
+
   // Build inline keyboard JSON
-  String keyboard = String("{\"inline_keyboard\":[[{\"text\":\"") + buttonText + 
+  String keyboard = String("{\"inline_keyboard\":[[{\"text\":\"") + buttonText +
                     "\",\"callback_data\":\"" + callbackData + "\"}]]}";
-  
-  String body = "chat_id=" + String(chat_) + 
-                "&text=" + text + 
+
+  String body = "chat_id=" + String(chat_) +
+                "&text=" + text +
                 "&parse_mode=HTML" +
                 "&reply_markup=" + keyboard;
 
   s_tls.setInsecure(); // TODO: setCACert for production
   if (!s_https.begin(s_tls, url)) return false;
+  s_https.setConnectTimeout(connectTimeoutMs_);
+  s_https.setTimeout(requestTimeoutMs_);
   s_https.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
   int code = s_https.POST(body);
@@ -99,18 +111,20 @@ bool Notifier::sendTelegramWithButton_(const String& text, const String& buttonT
 
 void Notifier::pollUpdates(void (*onRelease)(const String&)) {
   if (WiFi.status() != WL_CONNECTED || !onRelease) return;
-  
+
   // Throttle polling to avoid blocking main loop
   uint32_t now = millis();
   if (now - lastPollMs_ < pollIntervalMs_) return;
   lastPollMs_ = now;
-  
-  String url = String("https://api.telegram.org/bot") + bot_ + "/getUpdates?offset=" + 
-               String(lastUpdateId_ + 1) + "&timeout=0";
+
+  String url = String("https://api.telegram.org/bot") + bot_ + "/getUpdates?offset=" +
+               String(lastUpdateId_ + 1) + "&timeout=0&limit=4";
 
   s_tls.setInsecure();
   if (!s_https.begin(s_tls, url)) return;
-  
+  s_https.setConnectTimeout(connectTimeoutMs_);
+  s_https.setTimeout(requestTimeoutMs_);
+
   int code = s_https.GET();
   if (code != 200) {
     s_https.end();
@@ -120,8 +134,14 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
   String payload = s_https.getString();
   s_https.end();
 
+  // Guard loop responsiveness if Telegram backlog/response spikes.
+  if (payload.length() > 8192) {
+    Serial.printf("[TG] payload too large (%d), skipping parse\n", payload.length());
+    return;
+  }
+
   // Parse JSON response
-  JsonDocument doc(4096);
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, payload);
   if (error) {
     Serial.printf("[TG] JSON parse error: %s\n", error.c_str());
@@ -129,6 +149,8 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
   }
 
   JsonArray results = doc["result"];
+  constexpr uint8_t kMaxReleaseCallbacksPerPoll = 2;
+  uint8_t handledReleaseCallbacks = 0;
   for (JsonObject update : results) {
     int32_t updateId = update["update_id"];
     if (updateId > lastUpdateId_) lastUpdateId_ = updateId;
@@ -137,10 +159,13 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
     if (update["callback_query"].is<JsonObject>()) {
       JsonObject query = update["callback_query"];
       String callbackData = query["data"].as<String>();
-      
+
       if (callbackData == "release_door") {
+        if (handledReleaseCallbacks >= kMaxReleaseCallbacksPerPoll) {
+          continue;
+        }
         Serial.println(F("[TG] Release door callback received"));
-        
+
         // Extract user information
         JsonObject from = query["from"];
         String userName = "Unknown";
@@ -152,19 +177,22 @@ void Notifier::pollUpdates(void (*onRelease)(const String&)) {
         } else if (from["username"].is<const char*>()) {
           userName = "@" + from["username"].as<String>();
         }
-        
+
         // Answer the callback query to remove loading state
         String queryId = query["id"].as<String>();
-        String answerUrl = String("https://api.telegram.org/bot") + bot_ + 
+        String answerUrl = String("https://api.telegram.org/bot") + bot_ +
                           "/answerCallbackQuery?callback_query_id=" + queryId;
         s_tls.setInsecure();
         if (s_https.begin(s_tls, answerUrl)) {
+          s_https.setConnectTimeout(connectTimeoutMs_);
+          s_https.setTimeout(requestTimeoutMs_);
           s_https.GET();
           s_https.end();
         }
-        
+
         // Trigger the release callback with user info
         onRelease(userName);
+        handledReleaseCallbacks++;
       }
     }
   }

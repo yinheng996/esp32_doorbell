@@ -13,4 +13,6 @@ private:
   const char* ssid_;
   const char* pass_;
   const char* hostname_;
+  uint32_t lastReconnectAttemptMs_ {0};
+  uint32_t reconnectIntervalMs_ {5000};
 };

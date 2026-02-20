@@ -3,7 +3,8 @@
 #define BTN_PIN     27
 
 #define DEBOUNCE_MS 40UL
-#define COOLDOWN_MS 1000UL  // 1 second cooldown between presses
+#define BTN_EVENT_COOLDOWN_MS 150UL       // minimum interval between accepted press events
+#define PRESS_NOTIFY_COOLDOWN_MS 3000UL   // ignore repeated notify/log actions for 3 seconds
 
 #define RELAY_PIN   33
 

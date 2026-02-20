@@ -27,9 +27,8 @@ void IRAM_ATTR Button::isrHandler_() {
   }
 }
 
-// Called by ISR - record the event and pin state
+// Called by ISR - latch a press-edge event
 void IRAM_ATTR Button::handleInterrupt_() {
-  triggerState_ = digitalRead(pin_);
   triggered_ = true;
   triggerTimeMs_ = millis();
 }
@@ -44,14 +43,12 @@ void Button::loop() {
   // Debounce: wait for signal to stabilize
   if (timeSinceTrigger < debounceMs_) return;
   
-  // Use the pin state captured at interrupt time (not current state)
-  bool pressed = activeLow_ ? (triggerState_ == LOW) : (triggerState_ == HIGH);
-  
   // Clear the trigger flag
   triggered_ = false;
   
-  // Fire callback only on press edge, with cooldown
-  if (pressed && (now - lastFireMs_) > debounceMs_) {
+  // Interrupt mode is configured for the press edge only (FALLING/RISING).
+  // Once debounced, treat the latched edge as a valid press event.
+  if ((now - lastFireMs_) > debounceMs_) {
     lastFireMs_ = now;
     if (cb_) cb_();
   }

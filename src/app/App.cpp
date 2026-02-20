@@ -12,6 +12,7 @@
 #include "config.h"
 #include "credentials.h"
 #include "working_hours.h"
+#include <WiFi.h>
 
 // ---------- Single instance wiring ----------
 static App*        g_app = nullptr;
@@ -53,12 +54,20 @@ void App::begin() {
   // Schedule
   g_sched.begin(/*pollMs=*/1000);
   transitionHandled_ = true;
+  lastNetConnected_ = g_net.connected();
+  pendingOnlineAnnounce_ = g_hours.withinNow();
 
-  // Initial announce only if already within working hours
-  if (g_sched.within() && g_net.connected()) {
+  // Initial announce if we're already in-hours and connected.
+  if (pendingOnlineAnnounce_ && g_net.connected()) {
     g_notifier.sendOnline();
+    g_log.reportAndClear(g_notifier);
+    pendingOnlineAnnounce_ = false;
   } else {
-    Serial.println(F("[SCHED] booted outside working hours"));
+    if (!pendingOnlineAnnounce_) {
+      Serial.println(F("[SCHED] booted outside working hours"));
+    } else {
+      Serial.println(F("[SCHED] in-hours but waiting for Wi-Fi to announce online"));
+    }
   }
 }
 
@@ -66,11 +75,22 @@ void App::loop() {
   // Services (kept quick/non-blocking)
   g_net.loop();
   g_time.loop();
-  g_btn.loop();
-  g_relay.loop();
 
-  // Poll for Telegram updates (release button callbacks)
-  g_notifier.pollUpdates(&App::onReleaseThunk_);
+  const bool netNow = g_net.connected();
+  if (netNow != lastNetConnected_) {
+    lastNetConnected_ = netNow;
+    if (netNow) {
+      Serial.printf("[NET] connected, IP: %s\n", WiFi.localIP().toString().c_str());
+      // If we were waiting to announce online, do it now.
+      if (pendingOnlineAnnounce_ && g_hours.withinNow()) {
+        g_notifier.sendOnline();
+        g_log.reportAndClear(g_notifier);
+        pendingOnlineAnnounce_ = false;
+      }
+    } else {
+      Serial.println(F("[NET] disconnected"));
+    }
+  }
 
   // Edge detection
   const auto edge = g_sched.poll(); // Scheduler::Edge
@@ -79,6 +99,12 @@ void App::loop() {
     case Scheduler::Edge::Left:    handleEdge_(2); break;
     default: break;
   }
+
+  g_btn.loop();
+  g_relay.loop();
+
+  // Poll for Telegram updates (release button callbacks)
+  g_notifier.pollUpdates(&App::onReleaseThunk_);
 
   // Small cooperative delay
   // (Keep the loop snappy; no long blocking here)
@@ -91,13 +117,19 @@ void App::onPressThunk_() {
 
 void App::onPress_() {
   const uint32_t nowMs = millis();
-  if (nowMs - lastPressMs_ < COOLDOWN_MS) {
-    Serial.println(F("[BTN] press ignored (cooldown)"));
+  if (nowMs - lastPressEventMs_ < BTN_EVENT_COOLDOWN_MS) {
+    Serial.println(F("[BTN] press ignored (event cooldown)"));
     return;
   }
-  lastPressMs_ = nowMs;
+  lastPressEventMs_ = nowMs;
 
-  const bool within = g_sched.within();
+  if (nowMs - lastNotifyMs_ < PRESS_NOTIFY_COOLDOWN_MS) {
+    Serial.println(F("[BTN] press ignored (notify cooldown)"));
+    return;
+  }
+  lastNotifyMs_ = nowMs;
+
+  const bool within = g_hours.withinNow();
 
   if (within) {
     // Guarantee ordering at boundary: announce+summary before first press
@@ -127,7 +159,7 @@ void App::onReleaseThunk_(const String& userName) {
 
 void App::onRelease_(const String& userName) {
   time_t now = g_time.epoch();
-  const bool within = g_sched.within();
+  const bool within = g_hours.withinNow();
 
   if (within) {
     Serial.printf("[APP] Door release triggered by: %s\n", userName.c_str());
@@ -150,14 +182,17 @@ void App::onRelease_(const String& userName) {
 void App::handleEdge_(int edge) {
   if (edge == 1) { // Entered working hours
     Serial.println(F("[SCHED] Entered working hours"));
+    pendingOnlineAnnounce_ = true;
     if (g_net.connected()) {
       g_notifier.sendOnline();
       g_log.reportAndClear(g_notifier);
+      pendingOnlineAnnounce_ = false;
     }
     transitionHandled_ = true;
   }
   else if (edge == 2) { // Left working hours
     Serial.println(F("[SCHED] Left working hours"));
+    pendingOnlineAnnounce_ = false;
     if (g_net.connected()) {
       g_notifier.sendOffline();
     }

@@ -22,5 +22,7 @@ private:
   const char* door_;
   int32_t lastUpdateId_ {0};
   uint32_t lastPollMs_ {0};
-  uint32_t pollIntervalMs_ {500}; // Poll every 500ms
+  uint32_t pollIntervalMs_ {2000}; // Poll every 2s to reduce loop blocking
+  uint16_t connectTimeoutMs_ {250};
+  uint16_t requestTimeoutMs_ {350};
 };
