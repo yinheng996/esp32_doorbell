@@ -164,15 +164,19 @@ void App::onRelease_(const String& userName) {
   if (within) {
     Serial.printf("[APP] Door release triggered by: %s\n", userName.c_str());
     g_relay.trigger();
-    if (now > 0 && g_net.connected()) {
-      g_notifier.sendReleaseConfirm(userName, now);
+    if (g_net.connected()) {
+      if (!g_notifier.sendReleaseConfirm(userName, now)) {
+        Serial.println(F("[APP] Release confirmation send failed"));
+      }
     } else {
       Serial.println(F("[APP] Unable to send release confirmation"));
     }
   } else {
     Serial.printf("[APP] Door release rejected (off-hours) by: %s\n", userName.c_str());
-    if (now > 0 && g_net.connected()) {
-      g_notifier.sendReleaseRejected(userName, now);
+    if (g_net.connected()) {
+      if (!g_notifier.sendReleaseRejected(userName, now)) {
+        Serial.println(F("[APP] Rejection notice send failed"));
+      }
     } else {
       Serial.println(F("[APP] Unable to send rejection notice"));
     }

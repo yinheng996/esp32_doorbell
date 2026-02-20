@@ -1,4 +1,4 @@
-#include "Notifier.h"
+﻿#include "Notifier.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -11,25 +11,25 @@ Notifier::Notifier(const char* botToken, const char* chatId, const char* doorNam
 : bot_(botToken), chat_(chatId), door_(doorName) {}
 
 bool Notifier::sendOnline() {
-  String msg = String("🔌 <b>") + door_ + "</b> online\n";
-  msg += "☀️ Good morning makers!";
+  String msg = String("\xF0\x9F\x94\x8C <b>") + door_ + "</b> online\n";
+  msg += "\xE2\x98\x80\xEF\xB8\x8F Good morning makers!";
   return sendTelegram_(msg, true);
 }
 
 bool Notifier::sendOffline() {
-  String msg = String("🔕 <b>") + door_ + "</b> offline\n";
-  msg += "🌙 Enjoy your evening!";
+  String msg = String("\xF0\x9F\x94\x95 <b>") + door_ + "</b> offline\n";
+  msg += "\xF0\x9F\x8C\x99 Enjoy your evening!";
   return sendTelegram_(msg, true);
 }
 
 bool Notifier::sendPressed() {
-  return sendTelegram_(String("🔔 <b>") + door_ + "</b> rung", true);
+  return sendTelegram_(String("\xF0\x9F\x94\x94 <b>") + door_ + "</b> rung", true);
 }
 
 bool Notifier::sendPressedWithButton() {
   return sendTelegramWithButton_(
-    String("🔔 <b>") + door_ + "</b> rung",
-    "🔓 Release Door",
+    String("\xF0\x9F\x94\x94 <b>") + door_ + "</b> rung",
+    "\xF0\x9F\x94\x93 Release Door",
     "release_door"
   );
 }
@@ -44,8 +44,8 @@ bool Notifier::sendReleaseConfirm(const String& userName, time_t timestamp) {
   char timeStr[32];
   snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", lt.tm_hour, lt.tm_min, lt.tm_sec);
 
-  String msg = String("🔓 <b>") + door_ + "</b> door released\n";
-  msg += "👤 " + userName + " at " + timeStr;
+  String msg = String("\xF0\x9F\x94\x93 <b>") + door_ + "</b> door released\n";
+  msg += "\xF0\x9F\x91\xA4 " + userName + " at " + timeStr;
   return sendTelegram_(msg, true);
 }
 
@@ -55,8 +55,8 @@ bool Notifier::sendReleaseRejected(const String& userName, time_t timestamp) {
   char timeStr[32];
   snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d", lt.tm_hour, lt.tm_min, lt.tm_sec);
 
-  String msg = "🚫 Door Release Rejected\n";
-  msg += "👤 " + userName + " at " + timeStr;
+  String msg = "\xF0\x9F\x9A\xAB Door Release Rejected\n";
+  msg += "\xF0\x9F\x91\xA4 " + userName + " at " + timeStr;
   return sendTelegram_(msg, true);
 }
 
