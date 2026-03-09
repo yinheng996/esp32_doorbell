@@ -22,6 +22,21 @@ If you only want doorbell notifications without door unlock, use the `notificati
 - VS Code + PlatformIO extension.
 - Telegram bot token and chat ID.
 
+## Circuit
+
+**Doorbell button (momentary switch)**
+
+- Connect one terminal to `BTN_PIN`.
+- Connect the other terminal to GND.
+- The firmware uses active-low logic with the ESP32 internal pull-up resistor. When the button is pressed, the pin is pulled to ground.
+
+**Relay module**
+
+- Connect `VCC` to 5V.
+- Conenct `GND` to ground.
+- Connect `IN`  to `RELAY_PIN`.
+- The ESP32 drives the relay control input; the relay output switches the door lock power circuit.
+
 ## Setup
 1. Clone the repository and open it in VS Code.
 2. Configure Telegram by following `docs/telegram-bot-setup.md`.
