@@ -61,6 +61,7 @@ void App::begin() {
   if (pendingOnlineAnnounce_ && g_net.connected()) {
     g_notifier.sendOnline();
     g_log.reportAndClear(g_notifier);
+    pendingLogClearMs_ = millis() + 60000;  // force-clear in 1 min
     pendingOnlineAnnounce_ = false;
   } else {
     if (!pendingOnlineAnnounce_) {
@@ -85,6 +86,7 @@ void App::loop() {
       if (pendingOnlineAnnounce_ && g_hours.withinNow()) {
         g_notifier.sendOnline();
         g_log.reportAndClear(g_notifier);
+        pendingLogClearMs_ = millis() + 60000;  // force-clear in 1 min
         pendingOnlineAnnounce_ = false;
       }
     } else {
@@ -98,6 +100,13 @@ void App::loop() {
     case Scheduler::Edge::Entered: handleEdge_(1); break;
     case Scheduler::Edge::Left:    handleEdge_(2); break;
     default: break;
+  }
+
+  // Force-clear offline log 1 min after morning report (backup if send failed)
+  if (pendingLogClearMs_ != 0 && millis() >= pendingLogClearMs_) {
+    g_log.clear();
+    pendingLogClearMs_ = 0;
+    Serial.println(F("[APP] Offline log force-cleared (1 min after morning)"));
   }
 
   g_btn.loop();
@@ -136,7 +145,8 @@ void App::onPress_() {
     if (!transitionHandled_) {
       if (g_net.connected()) {
         g_notifier.sendOnline();
-        g_log.reportAndClear(g_notifier); // builds & sends summary; clears on success
+        g_log.reportAndClear(g_notifier);
+        pendingLogClearMs_ = millis() + 60000;  // force-clear in 1 min
       }
       transitionHandled_ = true;
     }
@@ -190,6 +200,7 @@ void App::handleEdge_(int edge) {
     if (g_net.connected()) {
       g_notifier.sendOnline();
       g_log.reportAndClear(g_notifier);
+      pendingLogClearMs_ = millis() + 60000;  // force-clear in 1 min
       pendingOnlineAnnounce_ = false;
     }
     transitionHandled_ = true;

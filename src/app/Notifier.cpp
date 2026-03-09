@@ -1,4 +1,4 @@
-﻿#include "Notifier.h"
+#include "Notifier.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -6,6 +6,33 @@
 
 static WiFiClientSecure s_tls;
 static HTTPClient       s_https;
+
+// URL-encode for application/x-www-form-urlencoded (fixes send failures with newlines/special chars)
+static String urlEncode_(const String& s) {
+  String out;
+  out.reserve(s.length() * 3);
+  for (unsigned i = 0; i < s.length(); i++) {
+    unsigned char c = (unsigned char)s[i];
+    if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9') ||
+        c == '-' || c == '_' || c == '.' || c == '~') {
+      out += (char)c;
+    } else if (c == ' ') {
+      out += '+';
+    } else if (c == '\n') {
+      out += "%0A";
+    } else if (c == '\r') {
+      out += "%0D";
+    } else if (c == '&' || c == '=' || c == '%') {
+      const char* enc = (c == '&') ? "%26" : (c == '=') ? "%3D" : "%25";
+      out += enc;
+    } else {
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%%%02X", c);
+      out += buf;
+    }
+  }
+  return out;
+}
 
 Notifier::Notifier(const char* botToken, const char* chatId, const char* doorName)
 : bot_(botToken), chat_(chatId), door_(doorName) {}
@@ -63,7 +90,7 @@ bool Notifier::sendReleaseRejected(const String& userName, time_t timestamp) {
 bool Notifier::sendTelegram_(const String& text, bool html) {
   if (WiFi.status() != WL_CONNECTED) return false;
   String url  = String("https://api.telegram.org/bot") + bot_ + "/sendMessage";
-  String body = "chat_id=" + String(chat_) + "&text=" + text;
+  String body = "chat_id=" + String(chat_) + "&text=" + urlEncode_(text);
   if (html) body += "&parse_mode=HTML";
 
   s_tls.setInsecure(); // TODO: setCACert for production
@@ -90,9 +117,9 @@ bool Notifier::sendTelegramWithButton_(const String& text, const String& buttonT
                     "\",\"callback_data\":\"" + callbackData + "\"}]]}";
 
   String body = "chat_id=" + String(chat_) +
-                "&text=" + text +
+                "&text=" + urlEncode_(text) +
                 "&parse_mode=HTML" +
-                "&reply_markup=" + keyboard;
+                "&reply_markup=" + urlEncode_(keyboard);
 
   s_tls.setInsecure(); // TODO: setCACert for production
   if (!s_https.begin(s_tls, url)) return false;

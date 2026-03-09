@@ -20,4 +20,7 @@ private:
   uint32_t lastNotifyMs_ = 0;
   bool lastNetConnected_ = false;
   bool pendingOnlineAnnounce_ = false;
+
+  // Force-clear offline log 1 min after morning report (backup if send fails)
+  uint32_t pendingLogClearMs_ = 0;
 };
