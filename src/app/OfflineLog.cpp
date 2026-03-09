@@ -60,7 +60,10 @@ String OfflineLog::buildSummary_() {
     if (t > 0) {
       struct tm lt{}; localtime_r(&t, &lt);
       char hhmm[6]; snprintf(hhmm, sizeof(hhmm), "%02d:%02d", lt.tm_hour, lt.tm_min);
-      msg += " • "; msg += hhmm; msg += "\n";
+      msg += " • "; msg += hhmm;
+      if (lt.tm_wday == 0) msg += " (Sunday)";
+      else if (lt.tm_wday == 6) msg += " (Saturday)";
+      msg += "\n";
     } else {
       msg += " • epoch 0\n";
     }
